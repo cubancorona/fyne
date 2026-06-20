@@ -218,6 +218,18 @@ func lifecycleMemoryWarning() {
 	cleanCaches()
 }
 
+// idleRenderTimeout bounds how long drawloop parks the main thread on a frame
+// with no pending GL work and no queued present. On iOS drawloop runs on the
+// main thread (GLKView CADisplayLink -> render: -> drawInRect -> drawloop), so
+// this fallback must stay well under one display refresh (16.6ms at 60Hz, 8.3ms
+// at 120Hz): otherwise the main run loop is held for the full timeout on every
+// idle tick, starving anything else on that thread -- e.g. a native UIScrollView
+// overlaid on the Fyne canvas scrolls choppily because its pan gesture and
+// CoreAnimation commit run on the same thread. It only needs to exceed the time
+// for a normal dirty-frame present, which is serviced via the work/publish cases
+// below regardless of this value.
+const idleRenderTimeout = 2 * time.Millisecond
+
 //export drawloop
 func drawloop() {
 	runtime.LockOSThread()
@@ -230,7 +242,7 @@ func drawloop() {
 		case <-theApp.publish:
 			theApp.publishResult <- PublishResult{}
 			return
-		case <-time.After(100 * time.Millisecond): // in case the method blocked!!
+		case <-time.After(idleRenderTimeout): // watchdog: return even if no present is queued
 			return
 		}
 	}
