@@ -1,0 +1,49 @@
+# BT fork CI — the rebase safety net (docs/FYNE_FORK_PLAN.md in the app repo).
+# Runs Fyne's own test suite plus the BibleText fork-invariant tests
+# (*_bt_test.go: discrete caret blink, modern-emoji glyph coverage) on every
+# push to a bt-* branch, so a rebase that silently drops a fork commit fails
+# here instead of on a phone weeks later.
+name: BT Fork CI
+
+on:
+  push:
+    branches: ["bt-main", "bt-*", "fix/**"]
+  pull_request:
+    branches: ["bt-main"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y bc clang lld libgl1-mesa-dev libwayland-dev libx11-dev libxkbcommon-dev xorg-dev xvfb language-pack-en fonts-noto-cjk
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-fuse-ld=lld" >> "$GITHUB_ENV"
+
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run go test -race ./...
+
+      - name: Test (macOS)
+        if: runner.os == 'macOS'
+        run: go test -race ./...
