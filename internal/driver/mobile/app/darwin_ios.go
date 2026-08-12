@@ -38,6 +38,7 @@ import (
 	"log"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -223,14 +224,34 @@ func drawloop() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	stalls := 0
 	for workAvailable := theApp.worker.WorkAvailable(); ; {
 		select {
 		case <-workAvailable:
 			theApp.worker.DoWork()
+			stalls = 0 // frame is making progress; reset the no-progress cap
 		case <-theApp.publish:
 			theApp.publishResult <- PublishResult{}
 			return
-		case <-time.After(100 * time.Millisecond): // in case the method blocked!!
+		case <-time.After(2 * time.Millisecond): // BibleText patch: was 100ms.
+			// drawloop runs on the MAIN THREAD every CADisplayLink tick (render: ->
+			// [glview display] -> drawInRect -> drawloop), and the GLKView PRESENTS once
+			// drawloop returns. Two problems the original 100ms fallback hid:
+			//   1. Idle frames (native UITextView/UITableView scrolling over a static Fyne
+			//      canvas): neither case above fires, so 100ms parked the main run loop
+			//      back-to-back, starving the native scroll's gesture/CA commit (~95% of a
+			//      scroll in ~100ms iterations, per an on-device trace). 2ms frees it.
+			//   2. But returning on the timeout while the driver is still PAINTING a frame
+			//      lets the GLKView present a HALF-DRAWN frame — the border edges, walked
+			//      last (header / nav bar), flash to the clear color = scroll flicker.
+			// So: while a paint is in progress (framePainting, set by the driver around
+			// paintWindow→Publish) keep waiting for the complete frame instead of presenting
+			// a partial one; only return fast when Fyne is genuinely idle. The stalls cap
+			// (~48ms with no progress) is a safety backstop against a stuck flag.
+			if atomic.LoadInt32(&framePainting) != 0 && stalls < 24 {
+				stalls++
+				continue
+			}
 			return
 		}
 	}

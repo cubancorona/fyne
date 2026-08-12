@@ -7,6 +7,8 @@
 package app
 
 import (
+	"sync/atomic"
+
 	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/driver/mobile/event/lifecycle"
 	"fyne.io/fyne/v2/internal/driver/mobile/gl"
@@ -14,6 +16,22 @@ import (
 	// Initialize necessary mobile functionality, such as logging.
 	_ "fyne.io/fyne/v2/internal/driver/mobile/mobileinit"
 )
+
+// framePainting (BibleText) is set by the driver while it walks the tree to paint a frame
+// (before paintWindow, cleared after Publish). On iOS, drawloop reads it so its idle
+// timeout never returns mid-paint — returning would let the GLKView present a half-drawn
+// frame (the border edges, drawn last, flash to the clear color = scroll flicker).
+// Harmless on other platforms (write-only).
+var framePainting int32
+
+// SetFramePainting marks whether the driver is mid-way through painting a frame.
+func SetFramePainting(on bool) {
+	if on {
+		atomic.StoreInt32(&framePainting, 1)
+	} else {
+		atomic.StoreInt32(&framePainting, 0)
+	}
+}
 
 // Main is called by the main.main function to run the mobile application.
 //
