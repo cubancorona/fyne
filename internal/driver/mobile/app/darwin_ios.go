@@ -25,6 +25,8 @@ uint64_t threadID();
 
 UIEdgeInsets getDevicePadding();
 bool isDark();
+void requestDisplay(void);
+void releaseDisplay(void);
 void showKeyboard(int keyboardType);
 void hideKeyboard();
 
@@ -304,6 +306,17 @@ func cStringsForFilter(filter *FileFilter) (*C.char, *C.char) {
 	exts := strings.Join(extList, "|")
 
 	return C.CString(mimes), C.CString(exts)
+}
+
+// driverRequestDisplay arms the iOS display link so drawloop will run and the
+// pending Publish can be serviced. See requestDisplay in darwin_ios.m.
+func driverRequestDisplay() {
+	C.requestDisplay()
+}
+
+// driverReleaseDisplay parks the iOS display link now that nothing is dirty.
+func driverReleaseDisplay() {
+	C.releaseDisplay()
 }
 
 // driverShowVirtualKeyboard requests the driver to show a virtual keyboard for text input

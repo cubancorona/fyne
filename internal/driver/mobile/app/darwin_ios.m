@@ -18,6 +18,12 @@ struct utsname sysInfo;
 
 static CGFloat keyboardHeight;
 
+// gDisplayLink drives rendering. It is PARKED whenever Fyne has nothing to draw
+// and armed by requestDisplay() when it does — see requestDisplay below for the
+// contract, and viewDidLoad for how it is created. Touched only on the main
+// thread (the link fires there, and both C entry points hop to the main queue).
+static CADisplayLink* gDisplayLink = nil;
+
 @interface GoAppAppController : GLKViewController<UIContentContainer, GLKViewDelegate>
 @end
 
@@ -155,8 +161,15 @@ static CGFloat keyboardHeight;
 	updateConfig((int)size.width, (int)size.height, orientation);
 
     self.glview.enableSetNeedsDisplay = NO;
-    CADisplayLink* displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(render:)];
-    [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+    gDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(render:)];
+    // Start PARKED. Rendering is on demand: Fyne's driver arms the link via
+    // requestDisplay() when its canvas is dirty and parks it again when it goes
+    // idle, so an idle app never enters drawloop and never holds the main
+    // thread. (Before this the link ran unconditionally at the refresh rate,
+    // and every idle tick parked the main run loop inside drawloop's fallback
+    // timeout, starving anything else on that thread.)
+    gDisplayLink.paused = YES;
+    [gDisplayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
 }
 
 - (void)viewWillTransitionToSize:(CGSize)ptSize withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
@@ -345,6 +358,33 @@ void showKeyboard(int keyboardType) {
         [view reloadInputViews];
 
         BOOL ret = [view becomeFirstResponder];
+    });
+}
+
+// requestDisplay arms the display link so that drawloop WILL run.
+//
+// The contract, and why it matters: publishing a frame is a rendezvous — the Go
+// driver blocks in Publish() until drawloop receives from its publish channel,
+// and drawloop only runs from inside glkView:drawInRect:. So every Go path that
+// paints and publishes must call this FIRST; otherwise the frame is never asked
+// for, nobody services the rendezvous, and the driver goroutine blocks forever.
+// Arming is idempotent, so a continuously animating app just leaves it armed.
+void requestDisplay(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (gDisplayLink != nil) {
+            gDisplayLink.paused = NO;
+        }
+    });
+}
+
+// releaseDisplay parks the display link again. The Go driver calls this when a
+// paint tick finds nothing dirty, i.e. when the app has gone idle. Safe to call
+// repeatedly, and never called while a publish is outstanding.
+void releaseDisplay(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (gDisplayLink != nil) {
+            gDisplayLink.paused = YES;
+        }
     });
 }
 

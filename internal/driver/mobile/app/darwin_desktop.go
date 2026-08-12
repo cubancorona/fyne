@@ -234,6 +234,15 @@ func lifecycleVisible() {
 //export lifecycleFocused
 func lifecycleFocused() { theApp.sendLifecycle(lifecycle.StageFocused) }
 
+// driverRequestDisplay does nothing on desktop: rendering runs on a background
+// goroutine (startloop/loop) that is always available to service a Publish.
+func driverRequestDisplay() {
+}
+
+// driverReleaseDisplay does nothing on desktop — see driverRequestDisplay.
+func driverReleaseDisplay() {
+}
+
 // driverShowVirtualKeyboard does nothing on desktop
 func driverShowVirtualKeyboard(KeyboardType) {
 }

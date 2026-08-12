@@ -73,6 +73,18 @@ type App interface {
 	// is to trigger a side effect rather than modify the event.
 	RegisterFilter(f func(any) any)
 
+	// RequestDisplay guarantees the platform will render at least one frame, so
+	// that a following Publish is serviced. It MUST be called before any
+	// paint+Publish: on iOS the renderer is parked while the canvas is clean,
+	// and Publish is a rendezvous that blocks until the renderer receives it.
+	// Idempotent, and inert on platforms whose renderer is always running.
+	RequestDisplay()
+
+	// ReleaseDisplay tells the platform nothing needs drawing, so it may park
+	// its renderer until the next RequestDisplay. Never call it while a Publish
+	// is outstanding.
+	ReleaseDisplay()
+
 	ShowVirtualKeyboard(KeyboardType)
 	HideVirtualKeyboard()
 	ShowFileOpenPicker(func(string, func()), *FileFilter)
@@ -157,6 +169,14 @@ func (a *app) Filter(event any) any {
 
 func (a *app) RegisterFilter(f func(any) any) {
 	a.filters = append(a.filters, f)
+}
+
+func (a *app) RequestDisplay() {
+	driverRequestDisplay()
+}
+
+func (a *app) ReleaseDisplay() {
+	driverReleaseDisplay()
 }
 
 func (a *app) ShowVirtualKeyboard(keyboard KeyboardType) {

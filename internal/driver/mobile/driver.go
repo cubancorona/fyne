@@ -315,6 +315,9 @@ func (d *driver) handleLifecycle(e lifecycle.Event, w *window) {
 			}
 
 			s := fyne.NewSize(float32(d.currentSize.WidthPx)/c.scale, float32(d.currentSize.HeightPx)/c.scale)
+			// The other Publish in this driver, and so the other place that must
+			// guarantee a frame is coming (see handlePaint).
+			d.app.RequestDisplay()
 			d.paintWindow(w, s)
 			d.app.Publish()
 		}
@@ -349,6 +352,13 @@ func (d *driver) handlePaint(e paint.Event, w *window) {
 			w.Resize(newSize)
 		}
 
+		// Ask the platform for a frame BEFORE painting. On iOS the renderer is
+		// parked while the canvas is clean, so this is what guarantees the
+		// Publish below is received rather than blocking forever; inert where
+		// the renderer always runs. Arming is idempotent, so an animation that
+		// dirties the canvas every tick simply leaves it armed.
+		d.app.RequestDisplay()
+
 		// BibleText: bracket the paint so iOS drawloop won't present a half-drawn frame
 		// on its idle timeout (see drawloop in app/darwin_ios.go). Cleared after Publish so
 		// the cache.Clean GL work below doesn't make drawloop wait.
@@ -356,6 +366,12 @@ func (d *driver) handlePaint(e paint.Event, w *window) {
 		d.paintWindow(w, newSize)
 		d.app.Publish()
 		app.SetFramePainting(false)
+	} else {
+		// Nothing to draw: let the platform park its renderer until the canvas
+		// next goes dirty. Deliberately only on the clean path — releasing after
+		// every frame instead would churn the display link throughout an
+		// animation, and must never happen while a Publish is outstanding.
+		d.app.ReleaseDisplay()
 	}
 	cache.Clean(canvasNeedRefresh)
 }

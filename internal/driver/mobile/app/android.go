@@ -315,6 +315,15 @@ func main(f func(App)) {
 	}
 }
 
+// driverRequestDisplay does nothing on Android: its renderer is a background
+// goroutine that is always running, so a Publish is always serviced.
+func driverRequestDisplay() {
+}
+
+// driverReleaseDisplay does nothing on Android — see driverRequestDisplay.
+func driverReleaseDisplay() {
+}
+
 // driverShowVirtualKeyboard requests the driver to show a virtual keyboard for text input
 func driverShowVirtualKeyboard(keyboard KeyboardType) {
 	err := mobileinit.RunOnJVM(func(vm, jniEnv, ctx uintptr) error {

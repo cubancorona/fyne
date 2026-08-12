@@ -130,6 +130,15 @@ func onStop() {
 	theApp.events.Close()
 }
 
+// driverRequestDisplay does nothing on desktop: rendering runs on a background
+// goroutine that is always available to service a Publish.
+func driverRequestDisplay() {
+}
+
+// driverReleaseDisplay does nothing on desktop — see driverRequestDisplay.
+func driverReleaseDisplay() {
+}
+
 // driverShowVirtualKeyboard does nothing on desktop
 func driverShowVirtualKeyboard(KeyboardType) {
 }
