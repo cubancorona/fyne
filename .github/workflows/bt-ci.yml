@@ -1,8 +1,12 @@
 # BT fork CI — the rebase safety net (docs/FYNE_FORK_PLAN.md in the app repo).
-# Runs Fyne's own test suite plus the BibleText fork-invariant tests
-# (*_bt_test.go: discrete caret blink, modern-emoji glyph coverage) on every
-# push to a bt-* branch, so a rebase that silently drops a fork commit fails
-# here instead of on a phone weeks later.
+#
+# Fyne's own four workflows (Platform / Mobile / Web / Static Analysis) run on
+# every push to this repo too, and they are the authority on the full suite.
+# This workflow checks only what they don't: the BibleText fork invariants
+# (*_bt_test.go: discrete caret blink, modern-emoji glyph coverage) plus the
+# upstream caret test that sits next to the fork's caret change — so a rebase
+# that silently drops a fork commit fails here instead of on a phone weeks
+# later.
 name: BT Fork CI
 
 on:
@@ -32,7 +36,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y bc clang lld libgl1-mesa-dev libwayland-dev libx11-dev libxkbcommon-dev xorg-dev xvfb language-pack-en fonts-noto-cjk
+          sudo apt-get install --no-install-recommends -y bc clang lld libgl1-mesa-dev libwayland-dev libx11-dev libxkbcommon-dev xorg-dev language-pack-en fonts-noto-cjk
           echo "CC=clang" >> "$GITHUB_ENV"
           echo "CGO_LDFLAGS=-fuse-ld=lld" >> "$GITHUB_ENV"
 
@@ -40,10 +44,8 @@ jobs:
         if: runner.os == 'Linux'
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
 
-      - name: Test (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run go test -race ./...
+      - name: Build
+        run: go build ./...
 
-      - name: Test (macOS)
-        if: runner.os == 'macOS'
-        run: go test -race ./...
+      - name: Fork invariants
+        run: go test -race -count=1 -run 'TestBT|TestEntryCursorAnim' ./widget/ ./theme/
