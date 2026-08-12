@@ -349,8 +349,13 @@ func (d *driver) handlePaint(e paint.Event, w *window) {
 			w.Resize(newSize)
 		}
 
+		// BibleText: bracket the paint so iOS drawloop won't present a half-drawn frame
+		// on its idle timeout (see drawloop in app/darwin_ios.go). Cleared after Publish so
+		// the cache.Clean GL work below doesn't make drawloop wait.
+		app.SetFramePainting(true)
 		d.paintWindow(w, newSize)
 		d.app.Publish()
+		app.SetFramePainting(false)
 	}
 	cache.Clean(canvasNeedRefresh)
 }
