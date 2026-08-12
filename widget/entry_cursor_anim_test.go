@@ -31,13 +31,15 @@ func TestEntryCursorAnim(t *testing.T) {
 	assert.True(t, a.anim.AutoReverse)
 	assert.Equal(t, fyne.AnimationRepeatForever, a.anim.RepeatCount)
 
-	t.Run("animation changes from opaque to dimmed fading only a small time in between", func(t *testing.T) {
+	// BibleText fork: the caret blinks DISCRETELY (see entry_cursor_anim.go) —
+	// at the half-cycle it snaps straight to dim, with no fade band.
+	t.Run("animation snaps from opaque to dimmed at the half-cycle", func(t *testing.T) {
 		a.anim.Tick(0.0)
 		assert.Equal(t, alpha(cursorOpaque), alpha(a.cursor.FillColor))
 		a.anim.Tick(0.4)
 		assert.Equal(t, alpha(cursorOpaque), alpha(a.cursor.FillColor))
 		a.anim.Tick(0.5)
-		assert.InDelta(t, (alpha(cursorOpaque)-alpha(cursorDim))/2+alpha(cursorDim), alpha(a.cursor.FillColor), 1)
+		assert.Equal(t, alpha(cursorDim), alpha(a.cursor.FillColor))
 		a.anim.Tick(0.6)
 		assert.Equal(t, alpha(cursorDim), alpha(a.cursor.FillColor))
 		a.anim.Tick(1.0)
@@ -64,7 +66,7 @@ func TestEntryCursorAnim(t *testing.T) {
 		a.anim.Tick(0.4)
 		assert.Equal(t, alpha(cursorOpaque), alpha(a.cursor.FillColor))
 		a.anim.Tick(0.5)
-		assert.InDelta(t, (alpha(cursorOpaque)-alpha(cursorDim))/2+alpha(cursorDim), alpha(a.cursor.FillColor), 1)
+		assert.Equal(t, alpha(cursorDim), alpha(a.cursor.FillColor))
 		a.anim.Tick(0.6)
 		assert.Equal(t, alpha(cursorDim), alpha(a.cursor.FillColor))
 		a.anim.Tick(1.0)
